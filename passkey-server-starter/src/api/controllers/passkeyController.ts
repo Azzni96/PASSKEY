@@ -1,5 +1,14 @@
-// TODO: add imports
+// add imports
+
+import { NextFunction, Request, Response } from 'express';
 import CustomError from '../../classes/CustomError';
+import { User } from '@sharedTypes/DBTypes';
+import { UserResponse } from '@sharedTypes/MessageTypes';
+import fetchData from '../../utils/fetchData';
+import { generateRegistrationOptions } from '@simplewebauthn/server';
+import { Challenge, PasskeyUserPost } from '../../types/PasskeyTypes';
+import challengeModel from '../models/challengeModel';
+import passkeyUserModel from '../models/passkeyUserModel';
 
 // check environment variables
 if (
@@ -16,22 +25,75 @@ const {NODE_ENV, RP_ID, AUTH_URL, JWT_SECRET, RP_NAME} = process.env;
 
 
 // Registration handler
-const setupPasskey = async (req, res, next) => {
+const setupPasskey = async (
+   req: Request<{}, {}, User>,
+   res: Response<{
+    email: string;
+    opitons: PublicKeyCredentialCreationOptionsJSON
+  }>,
+   next: NextFunction
+) => {
   try {
-    // TODO: Register user with AUTH API
-    // TODO: Generate registration options
-    // TODO: Save challenge to DB
-    // TODO: Add user to PasskeyUser collection
-    // TODO: Send response with email and options
+    // Register user with AUTH API
+    const options: RequestInit = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(req.body),
+    };
+    const userResponse = await fetchData<UserResponse>(
+      process.env.AUTH_URL + '/api/v1/users',
+      options,
+    );
+
+    if (!userResponse){
+      next(new CustomError('User registration failed', 400));
+      return;
+    }
+
+    // Generate registration options
+    const regOptions = await generateRegistrationOptions({
+      rpName: RP_NAME,
+      rpID: RP_ID,
+      userName: userResponse.user.username,
+      attestationType: 'none',
+      timeout: 60000,
+      authenticatorSelection: {
+        residentKey: 'preferred',
+        userVerification: 'preferred',
+      },
+      supportedAlgorithmIDs: [-7, -257],
+    });
+    console.log(regOptions);
+    // Save challenge to DB
+    const challenge: Challenge = {
+      challenge: regOptions.challenge,
+      email: userResponse.user.email
+    };
+    await challengeModel.create(challenge)
+    // Add user to PasskeyUser collection
+    const passkeyUser: PasskeyUserPost = {
+      email: userResponse.user.email,
+      userId: userResponse.user.user_id,
+      devices: []
+    }
+    await passkeyUserModel.create(passkeyUser);
+    // Send response with email and options
+    res.json({
+      email:userResponse.user.email,
+      opitons: regOptions,
+    });
   } catch (error) {
     next(new CustomError((error as Error).message, 500));
   }
 };
 
 // Registration verification handler
-const verifyPasskey = async (req, res, next) => {
+const verifyPasskey = async (req: Request, res: Response, next:NextFunction) => {
   try {
     // TODO: Retrieve expected challenge from DB
+
     // TODO: Verify registration response
     // TODO: Check if device is already registered
     // TODO: Save new authenticator to AuthenticatorDevice collection
@@ -44,7 +106,7 @@ const verifyPasskey = async (req, res, next) => {
 };
 
 // Generate authentication options handler
-const authenticationOptions = async (req, res, next) => {
+const authenticationOptions = async (req: Request, res: Response, next:NextFunction) => {
   try {
     // TODO: Retrieve user and associated devices from DB
     // TODO: Generate authentication options
@@ -56,7 +118,7 @@ const authenticationOptions = async (req, res, next) => {
 };
 
 // Authentication verification and login handler
-const verifyAuthentication = async (req, res, next) => {
+const verifyAuthentication = async (req: Request, res: Response, next:NextFunction) => {
   try {
     // TODO: Retrieve expected challenge from DB
     // TODO: Verify authentication response
