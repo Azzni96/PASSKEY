@@ -6,7 +6,7 @@ const PasskeyUserSchema = new Schema<PasskeyUserPost>({
   userId: {type: Number, required: true, unique: true},
   // add email (String, required, unique)
   email: {type: String, required: true, unique: true},
-  // TODO: add devices (Array of ObjectIds, required, ref: 'AuthenticatorDevice')
+  //  add devices (Array of ObjectIds, required, ref: 'AuthenticatorDevice')
   devices: {type: [Types.ObjectId], required: true, ref: 'AuthenticatorDevice'},
 
 });
